@@ -16,8 +16,19 @@ const app = express();
 
 // Basic middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: '*', // Be more specific in production
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+}));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Logging middleware for debugging
+app.use((req, res, next) => {
+  console.log(`Incoming Request: ${req.method} ${req.path}`);
+  console.log('Request Body:', req.body);
+  next();
+});
 
 // Rate limiting
 const limiter = rateLimit({
@@ -26,12 +37,21 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// API routes - make sure this is correctly using /api prefix
+// API routes
 app.use('/api', routes);
 
 // Health check route
 app.get('/', (req, res) => {
   res.json({ status: 'Server is running' });
+});
+
+// Catch-all route for undefined routes
+app.use((req, res) => {
+  res.status(404).json({ 
+    message: 'Route not found', 
+    path: req.path,
+    method: req.method
+  });
 });
 
 // Error handling middleware

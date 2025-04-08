@@ -13,9 +13,9 @@ const departmentRoutes = require('./department.routes');
 const headquartersRoutes = require('./headquarters.routes');
 const referenceRoutes = require('./reference.routes');
 
-// Mount routes
+// Mount routes with full controller implementations
 router.use('/auth', authRoutes);
-router.use('/users', userRoutes);
+router.use('/users', userRoutes);  // Ensure this matches the frontend API call
 router.use('/da', dailyAllowanceRoutes);
 router.use('/ta', travelAllowanceRoutes);
 router.use('/cities', cityRoutes);
@@ -23,6 +23,15 @@ router.use('/analytics', analyticsRoutes);
 router.use('/departments', departmentRoutes);
 router.use('/headquarters', headquartersRoutes);
 router.use('/reference', referenceRoutes);
+
+// Add a catch-all route to help diagnose routing issues
+router.use((req, res) => {
+  res.status(404).json({ 
+    message: 'Route not found', 
+    path: req.path,
+    method: req.method
+  });
+});
 
 // Export the router
 module.exports = router;

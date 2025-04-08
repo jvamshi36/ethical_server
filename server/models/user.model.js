@@ -28,37 +28,54 @@ class User {
     }
   }
   
+  static async findByEmail(email) {
+    try {
+      const result = await db.query(
+        'SELECT id, username, email FROM users WHERE email = $1',
+        [email]
+      );
+      
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+  
   static async findAll(filters = {}) {
     try {
-      let query = 'SELECT id, username, email, full_name, role, department, headquarters, reporting_manager_id, is_active, created_at, updated_at FROM users';
+      let query = `
+        SELECT id, username, email, full_name, role, department, headquarters, 
+        reporting_manager_id, is_active, created_at, updated_at 
+        FROM users
+      `;
       const queryParams = [];
       
       // Build query filters
       const conditions = [];
       
       if (filters.search) {
-        conditions.push(`(username ILIKE $${queryParams.length + 1} OR full_name ILIKE $${queryParams.length + 1} OR email ILIKE $${queryParams.length + 1})`);
         queryParams.push(`%${filters.search}%`);
+        conditions.push(`(username ILIKE $${queryParams.length} OR full_name ILIKE $${queryParams.length} OR email ILIKE $${queryParams.length})`);
       }
       
       if (filters.role) {
-        conditions.push(`role = $${queryParams.length + 1}`);
         queryParams.push(filters.role);
+        conditions.push(`role = $${queryParams.length}`);
       }
       
       if (filters.department) {
-        conditions.push(`department = $${queryParams.length + 1}`);
         queryParams.push(filters.department);
+        conditions.push(`department = $${queryParams.length}`);
       }
       
       if (filters.headquarters) {
-        conditions.push(`headquarters = $${queryParams.length + 1}`);
         queryParams.push(filters.headquarters);
+        conditions.push(`headquarters = $${queryParams.length}`);
       }
       
       if (filters.isActive !== undefined) {
-        conditions.push(`is_active = $${queryParams.length + 1}`);
         queryParams.push(filters.isActive);
+        conditions.push(`is_active = $${queryParams.length}`);
       }
       
       // Add WHERE clause if any conditions exist
@@ -76,41 +93,36 @@ class User {
     }
   }
   
-  static async create(userData) {
+  static async findByRoles(roles = []) {
     try {
-      const { username, password, email, fullName, role, department, headquarters, reportingManagerId } = userData;
-      
-      // Validate reporting manager based on role
-      if (reportingManagerId) {
-        const manager = await this.findById(reportingManagerId);
-        if (!manager) {
-          throw new Error('Invalid reporting manager');
-        }
-
-        // Check if the reporting manager has the correct role
-        const validManagerRoles = {
-          'BE': ['ABM', 'RBM'],
-          'BM': ['ABM', 'RBM'],
-          'SBM': ['ABM', 'RBM'],
-          'ABM': ['DGM', 'ZBM'],
-          'RBM': ['DGM', 'ZBM']
-        };
-
-        if (validManagerRoles[role] && !validManagerRoles[role].includes(manager.role)) {
-          throw new Error(`Invalid reporting manager role. ${role} must report to ${validManagerRoles[role].join(' or ')}`);
-        }
-      } else if (!['DGM', 'ZBM'].includes(role)) {
-        throw new Error('Reporting manager is required for this role');
+      if (!Array.isArray(roles) || roles.length === 0) {
+        return [];
       }
       
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const placeholders = roles.map((_, index) => `$${index + 1}`).join(',');
+      const query = `
+        SELECT id, username, full_name, role 
+        FROM users 
+        WHERE role IN (${placeholders}) AND is_active = true
+        ORDER BY full_name ASC
+      `;
+      
+      const result = await db.query(query, roles);
+      return result.rows;
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  static async create(userData) {
+    try {
+      const { username, password, email, fullName, role, department, headquarters, reportingManagerId, isActive = true } = userData;
       
       const result = await db.query(
         `INSERT INTO users (username, password, email, full_name, role, department, headquarters, reporting_manager_id, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id, username, email, full_name, role, department, headquarters, reporting_manager_id, is_active, created_at, updated_at`,
-        [username, hashedPassword, email, fullName, role, department, headquarters, reportingManagerId || null]
+        [username, password, email, fullName, role, department, headquarters, reportingManagerId, isActive]
       );
       
       return result.rows[0];
@@ -121,15 +133,15 @@ class User {
   
   static async update(id, userData) {
     try {
-      const { username, email, fullName, role, department, headquarters, reportingManagerId, isActive } = userData;
+      const { email, fullName, role, department, headquarters, reportingManagerId, isActive } = userData;
       
       const result = await db.query(
         `UPDATE users 
          SET email = $1, full_name = $2, role = $3, department = $4, 
-             headquarters = $5, reporting_manager_id = $6, is_active = $7
+             headquarters = $5, reporting_manager_id = $6, is_active = $7, updated_at = NOW()
          WHERE id = $8
          RETURNING id, username, email, full_name, role, department, headquarters, reporting_manager_id, is_active, created_at, updated_at`,
-        [email, fullName, role, department, headquarters, reportingManagerId || null, isActive, id]
+        [email, fullName, role, department, headquarters, reportingManagerId, isActive, id]
       );
       
       return result.rows[0];
@@ -138,14 +150,11 @@ class User {
     }
   }
   
-  static async updatePassword(id, newPassword) {
+  static async updatePassword(id, password) {
     try {
-      // Hash password
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      
       await db.query(
-        'UPDATE users SET password = $1 WHERE id = $2',
-        [hashedPassword, id]
+        'UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2',
+        [password, id]
       );
       
       return true;
@@ -158,7 +167,7 @@ class User {
     try {
       // Soft delete by setting is_active to false
       const result = await db.query(
-        'UPDATE users SET is_active = false WHERE id = $1 RETURNING id',
+        'UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING id',
         [id]
       );
       
@@ -175,7 +184,8 @@ class User {
                 u.reporting_manager_id, u.is_active, u.created_at, u.updated_at
          FROM users u
          JOIN user_teams ut ON u.id = ut.team_member_id
-         WHERE ut.manager_id = $1`,
+         WHERE ut.manager_id = $1
+         ORDER BY u.full_name ASC`,
         [managerId]
       );
       
@@ -187,6 +197,16 @@ class User {
   
   static async addTeamMember(managerId, teamMemberId) {
     try {
+      // First check if team member exists and is active
+      const memberCheck = await db.query(
+        'SELECT id FROM users WHERE id = $1 AND is_active = true',
+        [teamMemberId]
+      );
+      
+      if (memberCheck.rows.length === 0) {
+        throw new Error('Team member not found or inactive');
+      }
+      
       await db.query(
         'INSERT INTO user_teams (manager_id, team_member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [managerId, teamMemberId]
@@ -213,16 +233,17 @@ class User {
   
   static async getUserHierarchy() {
     try {
-      // Query to get users with their manager and team members
+      // Query to get users with their manager and team members in a hierarchical structure
       const result = await db.query(
         `WITH RECURSIVE user_hierarchy AS (
-          SELECT id, full_name, role, 1 AS level, ARRAY[]::integer[] AS path
+          SELECT id, full_name, role, 1 AS level, ARRAY[]::integer[] AS path, id::text AS path_names
           FROM users
           WHERE reporting_manager_id IS NULL
           
           UNION ALL
           
-          SELECT u.id, u.full_name, u.role, h.level + 1, h.path || u.id
+          SELECT u.id, u.full_name, u.role, h.level + 1, h.path || u.id, 
+                 h.path_names || '>' || u.full_name
           FROM users u
           JOIN user_hierarchy h ON u.reporting_manager_id = h.id
         )
@@ -231,6 +252,39 @@ class User {
       );
       
       return result.rows;
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  // Check if user exists by ID and return minimal info
+  static async exists(id) {
+    try {
+      const result = await db.query(
+        'SELECT id, username FROM users WHERE id = $1',
+        [id]
+      );
+      
+      return result.rows[0] || null;
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  // Get user with their reporting manager info
+  static async getUserWithManager(id) {
+    try {
+      const result = await db.query(
+        `SELECT u.id, u.username, u.email, u.full_name, u.role, u.department, u.headquarters, 
+                u.reporting_manager_id, u.is_active, u.created_at, u.updated_at,
+                m.id as manager_id, m.full_name as manager_name, m.role as manager_role
+         FROM users u
+         LEFT JOIN users m ON u.reporting_manager_id = m.id
+         WHERE u.id = $1`,
+        [id]
+      );
+      
+      return result.rows[0];
     } catch (error) {
       throw error;
     }
