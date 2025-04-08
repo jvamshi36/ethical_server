@@ -80,6 +80,29 @@ class User {
     try {
       const { username, password, email, fullName, role, department, headquarters, reportingManagerId } = userData;
       
+      // Validate reporting manager based on role
+      if (reportingManagerId) {
+        const manager = await this.findById(reportingManagerId);
+        if (!manager) {
+          throw new Error('Invalid reporting manager');
+        }
+
+        // Check if the reporting manager has the correct role
+        const validManagerRoles = {
+          'BE': ['ABM', 'RBM'],
+          'BM': ['ABM', 'RBM'],
+          'SBM': ['ABM', 'RBM'],
+          'ABM': ['DGM', 'ZBM'],
+          'RBM': ['DGM', 'ZBM']
+        };
+
+        if (validManagerRoles[role] && !validManagerRoles[role].includes(manager.role)) {
+          throw new Error(`Invalid reporting manager role. ${role} must report to ${validManagerRoles[role].join(' or ')}`);
+        }
+      } else if (!['DGM', 'ZBM'].includes(role)) {
+        throw new Error('Reporting manager is required for this role');
+      }
+      
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
       
