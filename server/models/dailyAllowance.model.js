@@ -19,19 +19,26 @@ class DailyAllowance {
     }
   }
   
-  static async findByUserId(userId) {
+  static async findByUserId(userId, startDate = null, endDate = null) {
     try {
-      const result = await db.query(
-        `SELECT da.*, u.full_name as user_name, u.role as user_role,
-                au.full_name as approver_name
-         FROM daily_allowances da
-         LEFT JOIN users u ON da.user_id = u.id
-         LEFT JOIN users au ON da.approved_by = au.id
-         WHERE da.user_id = $1
-         ORDER BY da.date DESC`,
-        [userId]
-      );
+      let query = `
+        SELECT da.*, u.full_name as user_name, u.role as user_role,
+               au.full_name as approver_name
+        FROM daily_allowances da
+        LEFT JOIN users u ON da.user_id = u.id
+        LEFT JOIN users au ON da.approved_by = au.id
+        WHERE da.user_id = $1
+      `;
+      const params = [userId];
+
+      if (startDate && endDate) {
+        query += ` AND da.date BETWEEN $2 AND $3`;
+        params.push(startDate, endDate);
+      }
+
+      query += ` ORDER BY da.date DESC`;
       
+      const result = await db.query(query, params);
       return result.rows;
     } catch (error) {
       throw error;
@@ -138,18 +145,32 @@ static async findExistingAllowance(userId, date) {
     }
   }
   
-  static async findPendingApprovals(managerId) {
+  static async findPendingApprovals(managerId = null) {
     try {
-      const result = await db.query(
-        `SELECT COUNT(*) as count
-         FROM daily_allowances da
-         JOIN users u ON da.user_id = u.id
-         JOIN user_teams ut ON u.id = ut.team_member_id
-         WHERE ut.manager_id = $1 AND da.status = 'PENDING'`,
-        [managerId]
-      );
+      let query = `
+        SELECT da.*, u.full_name as user_name, u.role as user_role,
+               u.headquarters, u.department,
+               au.full_name as approver_name
+        FROM daily_allowances da
+        JOIN users u ON da.user_id = u.id
+        LEFT JOIN users au ON da.approved_by = au.id
+        WHERE u.role NOT IN ('ADMIN', 'SUPER_ADMIN')
+      `;
+      const params = [];
+
+      if (managerId) {
+        query += ` AND EXISTS (
+          SELECT 1 FROM user_teams ut 
+          WHERE ut.team_member_id = u.id 
+          AND ut.manager_id = $1
+        ) AND da.status = 'PENDING'`;
+        params.push(managerId);
+      }
+
+      query += ' ORDER BY da.date DESC';
       
-      return parseInt(result.rows[0].count);
+      const result = await db.query(query, params);
+      return result.rows;
     } catch (error) {
       throw error;
     }

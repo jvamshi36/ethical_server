@@ -27,8 +27,16 @@ router.post('/calculate-distance', taController.calculateDistance);
 
 // Manager routes (requires manager role)
 router.get('/team', isManager(), taController.getTeamAllowances);
-router.get('/user/:userId', isManager(), taController.getUserAllowancesByUserId || taController.getUserAllowances);
 router.patch('/:id/status', isManager(), taController.updateStatus);
+
+// Allow users to view their own allowances
+router.get('/user/:userId', async (req, res, next) => {
+  // Allow access if user is requesting their own data or is a manager
+  if (req.user.id === parseInt(req.params.userId) || req.user.role === 'MANAGER' || req.user.role === 'ADMIN') {
+    return taController.getUserAllowances(req, res, next);
+  }
+  res.status(403).json({ message: 'Access denied' });
+});
 
 // Get available travel routes for the current user
 router.get('/routes', taController.getUserTravelRoutes);

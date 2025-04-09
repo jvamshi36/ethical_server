@@ -1,4 +1,3 @@
-// server/controllers/dailyAllowance.controller.js
 const DailyAllowance = require('../models/dailyAllowance.model');
 const RoleAllowance = require('../models/roleAllowance.model');
 
@@ -24,10 +23,25 @@ exports.getTeamAllowances = async (req, res) => {
   }
 };
 
+// Get all pending allowances for admin approval
+exports.getPendingAllowances = async (req, res) => {
+  try {
+    // For admin/super admin, get all pending allowances
+    // For managers, get only their team's pending allowances
+    const managerId = ['ADMIN', 'SUPER_ADMIN'].includes(req.user.role) ? null : req.user.id;
+    const allowances = await DailyAllowance.findPendingApprovals(managerId);
+    res.json(allowances);
+  } catch (error) {
+    console.error('Error fetching pending allowances:', error);
+    res.status(500).json({ message: 'Failed to fetch pending allowances' });
+  }
+};
+
 // Get daily allowances for a specific user
 exports.getUserAllowances = async (req, res) => {
   try {
-    const allowances = await DailyAllowance.findByUserId(req.params.userId);
+    const { startDate, endDate } = req.query;
+    const allowances = await DailyAllowance.findByUserId(req.params.userId, startDate, endDate);
     res.json(allowances);
   } catch (error) {
     console.error('Error fetching user daily allowances:', error);
@@ -56,6 +70,13 @@ exports.createAllowance = async (req, res) => {
   try {
     const { date, remarks } = req.body;
     const userId = req.user.id;
+    
+    // Prevent admin and super admin from creating allowances
+    if (['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({
+        message: 'Administrators cannot create allowance requests'
+      });
+    }
     
     // Get the fixed daily allowance amount for the user's role
     const allowanceAmount = await RoleAllowance.getDailyAllowanceForUser(userId);

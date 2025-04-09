@@ -20,7 +20,15 @@ router.delete('/:id', daController.deleteAllowance);
 
 // Manager routes (requires manager role)
 router.get('/team', isManager(), daController.getTeamAllowances);
-router.get('/user/:userId', isManager(), daController.getUserAllowances);
 router.patch('/:id/status', isManager(), daController.updateStatus);
+
+// Allow users to view their own allowances
+router.get('/user/:userId', async (req, res, next) => {
+  // Allow access if user is requesting their own data or is a manager
+  if (req.user.id === parseInt(req.params.userId) || req.user.role === 'MANAGER' || req.user.role === 'ADMIN') {
+    return daController.getUserAllowances(req, res, next);
+  }
+  res.status(403).json({ message: 'Access denied' });
+});
 
 module.exports = router;

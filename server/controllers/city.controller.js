@@ -37,6 +37,17 @@ exports.createCity = async (req, res) => {
       return res.status(400).json({ message: 'Name, state and headquarters are required' });
     }
     
+    // Check if city already exists
+    const cities = await City.findAll();
+    const cityExists = cities.some(city => 
+      city.name.toLowerCase() === name.toLowerCase() && 
+      city.state.toLowerCase() === state.toLowerCase()
+    );
+    
+    if (cityExists) {
+      return res.status(400).json({ message: 'City already exists' });
+    }
+    
     const city = await City.create({
       name,
       state,
