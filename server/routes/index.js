@@ -17,7 +17,7 @@ const userTravelRouteRoutes = require('./userTravelRoute.routes');
 
 // Mount routes with full controller implementations
 router.use('/auth', authRoutes);
-router.use('/users', userRoutes);  // Ensure this matches the frontend API call
+router.use('/users', userRoutes);  
 router.use('/da', dailyAllowanceRoutes);
 router.use('/ta', travelAllowanceRoutes);
 router.use('/cities', cityRoutes);
@@ -25,7 +25,7 @@ router.use('/analytics', analyticsRoutes);
 router.use('/departments', departmentRoutes);
 router.use('/headquarters', headquartersRoutes);
 router.use('/reference', referenceRoutes);
-router.use('/role-allowances', roleAllowanceRoutes);
+router.use('/role-allowances', roleAllowanceRoutes); // Ensure this path matches
 router.use('/travel-routes', userTravelRouteRoutes);
 
 // Add a catch-all route to help diagnose routing issues

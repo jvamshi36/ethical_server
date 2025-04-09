@@ -57,6 +57,22 @@ class DailyAllowance {
       throw error;
     }
   }
+
+  // Add this method to server/models/dailyAllowance.model.js
+
+static async findExistingAllowance(userId, date) {
+  try {
+    const result = await db.query(
+      `SELECT * FROM daily_allowances 
+       WHERE user_id = $1 AND date = $2`,
+      [userId, date]
+    );
+    
+    return result.rows[0];
+  } catch (error) {
+    throw error;
+  }
+}
   
   static async create(allowanceData) {
     try {

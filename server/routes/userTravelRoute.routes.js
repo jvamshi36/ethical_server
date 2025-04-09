@@ -1,3 +1,4 @@
+// server/routes/userTravelRoute.routes.js
 const express = require('express');
 const router = express.Router();
 const userTravelRouteController = require('../controllers/userTravelRoute.controller');
@@ -14,7 +15,7 @@ router.get('/test', (req, res) => {
 // Get routes for current user (any authenticated user)
 router.get('/my-routes', userTravelRouteController.getUserRoutes);
 
-// Admin routes (requires admin role)
+// Admin-only routes
 router.use(isAdmin());
 
 // Get all routes for a specific user

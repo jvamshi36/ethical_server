@@ -14,6 +14,11 @@ dotenv.config();
 // Create Express app
 const app = express();
 
+const scheduleDailyAllowance = require('./schedulers/dailyAllowance.scheduler');
+
+// Initialize schedulers
+scheduleDailyAllowance();
+
 // Basic middleware
 app.use(helmet());
 app.use(cors({

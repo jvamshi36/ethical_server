@@ -213,6 +213,40 @@ exports.getUserTravelRoutes = async (req, res) => {
   }
 };
 
+// Add this function to server/controllers/travelAllowance.controller.js
+
+// Validate if route is configured for user
+exports.validateRoute = async (req, res) => {
+  try {
+    const { fromCity, toCity } = req.body;
+    const userId = req.user.id;
+    
+    if (!fromCity || !toCity) {
+      return res.status(400).json({ message: 'From and To cities are required' });
+    }
+    
+    // Check if this is a predefined route for the user
+    const userRoute = await UserTravelRoute.findByRoute(userId, fromCity, toCity);
+    
+    if (!userRoute) {
+      return res.status(403).json({ 
+        message: 'This travel route is not configured for you. Please contact an administrator.' 
+      });
+    }
+    
+    // Return the predefined distance and amount from the configured route
+    res.json({
+      valid: true,
+      fromCity,
+      toCity,
+      distance: userRoute.distance,
+      amount: userRoute.amount
+    });
+  } catch (error) {
+    console.error('Error validating route:', error);
+    res.status(500).json({ message: 'Failed to validate route' });
+  }
+};
 // Calculate distance between cities
 exports.calculateDistance = async (req, res) => {
   try {
