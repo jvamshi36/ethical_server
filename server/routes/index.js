@@ -12,6 +12,8 @@ const analyticsRoutes = require('./analytics.routes');
 const departmentRoutes = require('./department.routes');
 const headquartersRoutes = require('./headquarters.routes');
 const referenceRoutes = require('./reference.routes');
+const roleAllowanceRoutes = require('./roleAllowance.routes');
+const userTravelRouteRoutes = require('./userTravelRoute.routes');
 
 // Mount routes with full controller implementations
 router.use('/auth', authRoutes);
@@ -23,6 +25,8 @@ router.use('/analytics', analyticsRoutes);
 router.use('/departments', departmentRoutes);
 router.use('/headquarters', headquartersRoutes);
 router.use('/reference', referenceRoutes);
+router.use('/role-allowances', roleAllowanceRoutes);
+router.use('/travel-routes', userTravelRouteRoutes);
 
 // Add a catch-all route to help diagnose routing issues
 router.use((req, res) => {

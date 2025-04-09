@@ -1,4 +1,3 @@
-// server/models/userTravelRoute.model.js
 const db = require('../config/db');
 
 class UserTravelRoute {

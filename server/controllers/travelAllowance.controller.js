@@ -1,4 +1,5 @@
 const TravelAllowance = require('../models/travelAllowance.model');
+const UserTravelRoute = require('../models/userTravelRoute.model');
 
 // Get all travel allowances for the current user
 exports.getAllowances = async (req, res) => {
@@ -52,16 +53,27 @@ exports.getAllowanceById = async (req, res) => {
 // Create a new travel allowance
 exports.createAllowance = async (req, res) => {
   try {
-    const { date, fromCity, toCity, distance, travelMode, amount, remarks } = req.body;
+    const { date, fromCity, toCity, travelMode, remarks } = req.body;
+    const userId = req.user.id;
     
+    // Check if this is a predefined route for the user
+    const userRoute = await UserTravelRoute.findByRoute(userId, fromCity, toCity);
+    
+    if (!userRoute) {
+      return res.status(400).json({ 
+        message: 'This travel route is not configured for you. Please contact an administrator.' 
+      });
+    }
+    
+    // Use the predefined distance and amount from the configured route
     const allowance = await TravelAllowance.create({
-      userId: req.user.id,
+      userId,
       date,
       fromCity,
       toCity,
-      distance,
+      distance: userRoute.distance,
       travelMode,
-      amount,
+      amount: userRoute.amount,
       remarks
     });
     
@@ -75,7 +87,7 @@ exports.createAllowance = async (req, res) => {
 // Update a travel allowance
 exports.updateAllowance = async (req, res) => {
   try {
-    const { date, fromCity, toCity, distance, travelMode, amount, remarks } = req.body;
+    const { date, fromCity, toCity, travelMode, remarks } = req.body;
     
     // Check if allowance exists
     const allowance = await TravelAllowance.findById(req.params.id);
@@ -93,7 +105,26 @@ exports.updateAllowance = async (req, res) => {
       return res.status(403).json({ message: 'You can only update allowances in PENDING status' });
     }
     
-    // Update allowance
+    // If travel route is changed, verify it's allowed and get the new amount and distance
+    let distance = allowance.distance;
+    let amount = allowance.amount;
+    
+    if (fromCity !== allowance.from_city || toCity !== allowance.to_city) {
+      // Check if this is a predefined route for the user
+      const userRoute = await UserTravelRoute.findByRoute(req.user.id, fromCity, toCity);
+      
+      if (!userRoute) {
+        return res.status(400).json({ 
+          message: 'This travel route is not configured for you. Please contact an administrator.' 
+        });
+      }
+      
+      // Use the predefined distance and amount from the configured route
+      distance = userRoute.distance;
+      amount = userRoute.amount;
+    }
+    
+    // Update allowance (amount and distance are from the predefined route)
     const updatedAllowance = await TravelAllowance.update(req.params.id, {
       date,
       fromCity,
@@ -171,18 +202,43 @@ exports.updateStatus = async (req, res) => {
   }
 };
 
+// Get available travel routes for the current user
+exports.getUserTravelRoutes = async (req, res) => {
+  try {
+    const routes = await UserTravelRoute.findByUserId(req.user.id);
+    res.json(routes);
+  } catch (error) {
+    console.error('Error fetching user travel routes:', error);
+    res.status(500).json({ message: 'Failed to fetch travel routes' });
+  }
+};
+
 // Calculate distance between cities
 exports.calculateDistance = async (req, res) => {
   try {
     const { fromCity, toCity } = req.body;
+    const userId = req.user.id;
     
     if (!fromCity || !toCity) {
       return res.status(400).json({ message: 'From and To cities are required' });
     }
     
-    const distanceData = await TravelAllowance.getDistanceBetweenCities(fromCity, toCity);
+    // Check if this is a predefined route for the user
+    const userRoute = await UserTravelRoute.findByRoute(userId, fromCity, toCity);
     
-    res.json(distanceData);
+    if (!userRoute) {
+      return res.status(400).json({ 
+        message: 'This travel route is not configured for you. Please contact an administrator.' 
+      });
+    }
+    
+    // Return the predefined distance and amount from the configured route
+    res.json({
+      fromCity,
+      toCity,
+      distance: userRoute.distance,
+      amount: userRoute.amount
+    });
   } catch (error) {
     console.error('Error calculating distance:', error);
     res.status(500).json({ message: 'Failed to calculate distance' });
