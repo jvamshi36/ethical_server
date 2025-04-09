@@ -131,25 +131,31 @@ class User {
     }
   }
   
-  static async update(id, userData) {
-    try {
-      const { email, fullName, role, department, headquarters, reportingManagerId, isActive } = userData;
-      
-      const result = await db.query(
-        `UPDATE users 
-         SET email = $1, full_name = $2, role = $3, department = $4, 
-             headquarters = $5, reporting_manager_id = $6, is_active = $7, updated_at = NOW()
-         WHERE id = $8
-         RETURNING id, username, email, full_name, role, department, headquarters, reporting_manager_id, is_active, created_at, updated_at`,
-        [email, fullName, role, department, headquarters, reportingManagerId, isActive, id]
-      );
-      
-      return result.rows[0];
-    } catch (error) {
-      throw error;
-    }
+ // Update in server/models/user.model.js
+
+static async update(id, userData) {
+  try {
+    const { email, fullName, role, department, headquarters, reportingManagerId, isActive } = userData;
+    
+    // Add debugging log to see the exact value being used for reportingManagerId
+    console.log('In User.update - reportingManagerId:', reportingManagerId, 'type:', typeof reportingManagerId);
+    
+    const result = await db.query(
+      `UPDATE users 
+       SET email = $1, full_name = $2, role = $3, department = $4, 
+           headquarters = $5, reporting_manager_id = $6, is_active = $7, updated_at = NOW()
+       WHERE id = $8
+       RETURNING id, username, email, full_name, role, department, headquarters, reporting_manager_id, is_active, created_at, updated_at`,
+      [email, fullName, role, department, headquarters, reportingManagerId, isActive, id]
+    );
+    
+    return result.rows[0];
+  } catch (error) {
+    console.error('Error in User.update:', error);
+    throw error;
   }
-  
+}
+
   static async updatePassword(id, password) {
     try {
       await db.query(
@@ -268,6 +274,30 @@ class User {
       return result.rows[0] || null;
     } catch (error) {
       throw error;
+    }
+  }
+  static async findByRolesAndHQ(roles = [], headquarters) {
+    try {
+      if (!Array.isArray(roles) || roles.length === 0) {
+        return [];
+      }
+      
+      const params = [...roles, headquarters];
+      const rolePlaceholders = roles.map((_, index) => `$${index + 1}`).join(',');
+      const query = `
+        SELECT id, username, full_name as "fullName", role 
+        FROM users 
+        WHERE role IN (${rolePlaceholders}) 
+        AND headquarters = $${roles.length + 1}
+        AND is_active = true
+        ORDER BY full_name ASC
+      `;
+      
+      const result = await db.query(query, params);
+      return result.rows;
+    } catch (error) {
+      console.error("Error in findByRolesAndHQ:", error);
+      return [];
     }
   }
   

@@ -115,9 +115,16 @@ exports.createUser = async (req, res) => {
 };
 
 // Update user
+// Update in server/controllers/user.controller.js
+
 exports.updateUser = async (req, res) => {
   try {
     const { email, fullName, role, department, headquarters, reportingManagerId, isActive } = req.body;
+    
+    // Log the incoming data for debugging
+    console.log('Update User request for ID:', req.params.id);
+    console.log('Request body:', req.body);
+    console.log('reportingManagerId type:', typeof reportingManagerId, 'value:', reportingManagerId);
     
     // Validate required fields
     if (!email || !fullName || !role || !department || !headquarters) {
@@ -132,15 +139,12 @@ exports.updateUser = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    // Check reporting manager requirement based on role
-    if (!['DGM', 'ZBM', 'ADMIN', 'SUPER_ADMIN'].includes(role) && !reportingManagerId) {
-      return res.status(400).json({ 
-        message: 'Reporting manager is required for this role' 
-      });
-    }
+    // Handle reportingManagerId properly
+    let finalReportingManagerId = null;
     
-    // If reportingManagerId is provided, verify it exists and is not the same as the user being updated
-    if (reportingManagerId) {
+    // Only process reportingManagerId if it has an actual value
+    if (reportingManagerId && reportingManagerId.trim() !== '') {
+      // If reportingManagerId is provided, verify it exists and is not the same as the user being updated
       if (reportingManagerId === req.params.id) {
         return res.status(400).json({ message: 'User cannot be their own reporting manager' });
       }
@@ -149,6 +153,8 @@ exports.updateUser = async (req, res) => {
       if (!manager) {
         return res.status(400).json({ message: 'Invalid reporting manager ID' });
       }
+      
+      finalReportingManagerId = reportingManagerId;
     }
     
     // Update user
@@ -158,7 +164,7 @@ exports.updateUser = async (req, res) => {
       role,
       department,
       headquarters,
-      reportingManagerId: reportingManagerId || null,
+      reportingManagerId: finalReportingManagerId, // Use processed value
       isActive: isActive !== undefined ? isActive : user.is_active
     });
     
@@ -340,7 +346,7 @@ exports.findByEmail = async (req, res) => {
 // Get managers for dropdown
 exports.getManagers = async (req, res) => {
   try {
-    const { role } = req.query;
+    const { role, headquarters } = req.query;
     
     let managerRoles = [];
     
@@ -352,8 +358,27 @@ exports.getManagers = async (req, res) => {
       managerRoles = ['ZBM', 'DGM', 'ADMIN', 'SUPER_ADMIN'];
     }
     
-    const managers = await User.findByRoles(managerRoles);
+    // Build query parameters
+    const params = {
+      roles: managerRoles
+    };
     
+    // Filter by the same headquarters if provided
+    if (headquarters) {
+      params.headquarters = headquarters;
+    }
+    
+    // Use the findByRolesAndHQ method instead
+    let managers = [];
+    if (headquarters) {
+      // Find managers with matching headquarters
+      managers = await User.findByRolesAndHQ(managerRoles, headquarters);
+    } else {
+      // Fallback to the original method if no headquarters specified
+      managers = await User.findByRoles(managerRoles);
+    }
+    
+    // Return managers
     res.json(managers);
   } catch (error) {
     console.error('Error fetching managers:', error);

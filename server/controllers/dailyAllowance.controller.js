@@ -1,4 +1,6 @@
+// server/controllers/dailyAllowance.controller.js
 const DailyAllowance = require('../models/dailyAllowance.model');
+const RoleAllowance = require('../models/roleAllowance.model');
 
 // Get all daily allowances for the current user
 exports.getAllowances = async (req, res) => {
@@ -49,15 +51,25 @@ exports.getAllowanceById = async (req, res) => {
   }
 };
 
-// Create a new daily allowance
+// Create a new daily allowance (now with automatic amount from role)
 exports.createAllowance = async (req, res) => {
   try {
-    const { date, amount, remarks } = req.body;
+    const { date, remarks } = req.body;
+    const userId = req.user.id;
+    
+    // Get the fixed daily allowance amount for the user's role
+    const allowanceAmount = await RoleAllowance.getDailyAllowanceForUser(userId);
+    
+    if (!allowanceAmount) {
+      return res.status(400).json({ 
+        message: 'Daily allowance amount not configured for your role. Please contact an administrator.' 
+      });
+    }
     
     const allowance = await DailyAllowance.create({
-      userId: req.user.id,
+      userId,
       date,
-      amount,
+      amount: allowanceAmount,
       remarks
     });
     
@@ -68,10 +80,10 @@ exports.createAllowance = async (req, res) => {
   }
 };
 
-// Update a daily allowance
+// Update a daily allowance (only remarks can be updated by user)
 exports.updateAllowance = async (req, res) => {
   try {
-    const { date, amount, remarks } = req.body;
+    const { date, remarks } = req.body;
     
     // Check if allowance exists
     const allowance = await DailyAllowance.findById(req.params.id);
@@ -89,10 +101,13 @@ exports.updateAllowance = async (req, res) => {
       return res.status(403).json({ message: 'You can only update allowances in PENDING status' });
     }
     
-    // Update allowance
+    // Get the fixed daily allowance amount (in case the role changed)
+    const allowanceAmount = await RoleAllowance.getDailyAllowanceForUser(req.user.id);
+    
+    // Update allowance (only date and remarks - amount is fixed by role)
     const updatedAllowance = await DailyAllowance.update(req.params.id, {
       date,
-      amount,
+      amount: allowanceAmount, // Always use the role-based amount
       remarks
     });
     

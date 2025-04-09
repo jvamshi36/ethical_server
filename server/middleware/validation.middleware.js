@@ -20,7 +20,7 @@ const userUpdateSchema = Joi.object({
   role: Joi.string().valid('BE', 'BM', 'SBM', 'ABM', 'RBM', 'ZBM', 'DGM', 'ADMIN', 'SUPER_ADMIN').required(),
   department: Joi.string().required(),
   headquarters: Joi.string().required(),
-  reportingManagerId: Joi.string().allow(null, ''),
+  reportingManagerId: Joi.string().allow(null, ''), // Allow null and empty string
   isActive: Joi.boolean().default(true)
 });
 
