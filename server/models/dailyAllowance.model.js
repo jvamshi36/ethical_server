@@ -175,6 +175,61 @@ static async findExistingAllowance(userId, date) {
       throw error;
     }
   }
+  // Add this method to the DailyAllowance model class
+
+// Find all daily allowances (for admin)
+static async findAll(filters = {}) {
+  try {
+    let query = `
+      SELECT da.*, u.full_name as user_name, u.role as user_role,
+             au.full_name as approver_name,
+             u.department, u.headquarters
+      FROM daily_allowances da
+      JOIN users u ON da.user_id = u.id
+      LEFT JOIN users au ON da.approved_by = au.id
+    `;
+    
+    const conditions = [];
+    const params = [];
+    
+    // Add filters if provided
+    if (filters.startDate && filters.endDate) {
+      conditions.push(`da.date BETWEEN $${params.length + 1} AND $${params.length + 2}`);
+      params.push(filters.startDate, filters.endDate);
+    }
+    
+    if (filters.status) {
+      conditions.push(`da.status = $${params.length + 1}`);
+      params.push(filters.status);
+    }
+    
+    if (filters.headquarters) {
+      conditions.push(`u.headquarters = $${params.length + 1}`);
+      params.push(filters.headquarters);
+    }
+    
+    if (filters.department) {
+      conditions.push(`u.department = $${params.length + 1}`);
+      params.push(filters.department);
+    }
+    
+    // Exclude admin and super admin users
+    conditions.push(`u.role NOT IN ('ADMIN', 'SUPER_ADMIN')`);
+    
+    // Add conditions to query
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    
+    // Add order
+    query += ' ORDER BY da.date DESC';
+    
+    const result = await db.query(query, params);
+    return result.rows;
+  } catch (error) {
+    throw error;
+  }
+}
   
   static async getTotalsByUser(userId, startDate, endDate) {
     try {

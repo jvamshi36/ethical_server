@@ -198,3 +198,56 @@ exports.updateStatus = async (req, res) => {
     res.status(500).json({ message: 'Failed to update allowance status' });
   }
 };
+// Add this method to the dailyAllowance.controller.js file
+
+// Get all daily allowances for admin
+exports.getAllAllowancesAdmin = async (req, res) => {
+  try {
+    // Check if user is admin or super admin
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const allowances = await DailyAllowance.findAll();
+    res.json(allowances);
+  } catch (error) {
+    console.error('Error fetching all daily allowances:', error);
+    res.status(500).json({ message: 'Failed to fetch daily allowances' });
+  }
+};
+
+// Modify the createAllowance method to restrict admin and super admin
+exports.createAllowance = async (req, res) => {
+  try {
+    const { date, remarks } = req.body;
+    const userId = req.user.id;
+    
+    // Prevent admin and super admin from creating allowances
+    if (['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({
+        message: 'Administrators cannot create allowance requests'
+      });
+    }
+    
+    // Get the fixed daily allowance amount for the user's role
+    const allowanceAmount = await RoleAllowance.getDailyAllowanceForUser(userId);
+    
+    if (!allowanceAmount) {
+      return res.status(400).json({ 
+        message: 'Daily allowance amount not configured for your role. Please contact an administrator.' 
+      });
+    }
+    
+    const allowance = await DailyAllowance.create({
+      userId,
+      date,
+      amount: allowanceAmount,
+      remarks
+    });
+    
+    res.status(201).json(allowance);
+  } catch (error) {
+    console.error('Error creating daily allowance:', error);
+    res.status(500).json({ message: 'Failed to create daily allowance' });
+  }
+};

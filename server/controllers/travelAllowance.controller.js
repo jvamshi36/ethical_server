@@ -300,3 +300,61 @@ exports.calculateDistance = async (req, res) => {
     res.status(500).json({ message: 'Failed to calculate distance' });
   }
 };
+// Add this method to the travelAllowance.controller.js file
+
+// Get all travel allowances for admin
+exports.getAllAllowancesAdmin = async (req, res) => {
+  try {
+    // Check if user is admin or super admin
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const allowances = await TravelAllowance.findAll();
+    res.json(allowances);
+  } catch (error) {
+    console.error('Error fetching all travel allowances:', error);
+    res.status(500).json({ message: 'Failed to fetch travel allowances' });
+  }
+};
+
+// Update the createAllowance method to restrict admin and super admin
+exports.createAllowance = async (req, res) => {
+  try {
+    const { date, fromCity, toCity, travelMode, remarks } = req.body;
+    const userId = req.user.id;
+    
+    // Prevent admin and super admin from creating allowances
+    if (['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({
+        message: 'Administrators cannot create allowance requests'
+      });
+    }
+    
+    // Check if this is a predefined route for the user
+    const userRoute = await UserTravelRoute.findByRoute(userId, fromCity, toCity);
+    
+    if (!userRoute) {
+      return res.status(400).json({ 
+        message: 'This travel route is not configured for you. Please contact an administrator.' 
+      });
+    }
+    
+    // Use the predefined distance and amount from the configured route
+    const allowance = await TravelAllowance.create({
+      userId,
+      date,
+      fromCity,
+      toCity,
+      distance: userRoute.distance,
+      travelMode,
+      amount: userRoute.amount,
+      remarks
+    });
+    
+    res.status(201).json(allowance);
+  } catch (error) {
+    console.error('Error creating travel allowance:', error);
+    res.status(500).json({ message: 'Failed to create travel allowance' });
+  }
+};
