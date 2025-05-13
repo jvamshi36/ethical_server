@@ -67,14 +67,19 @@ class DailyAllowance {
 
   // Add this method to server/models/dailyAllowance.model.js
 
-static async findExistingAllowance(userId, date) {
+static async findExistingAllowance(userId, date, source = null) {
   try {
-    const result = await db.query(
-      `SELECT * FROM daily_allowances 
-       WHERE user_id = $1 AND date = $2`,
-      [userId, date]
-    );
+    let query = `SELECT * FROM daily_allowances 
+       WHERE user_id = $1 AND date = $2`;
+    const params = [userId, date];
     
+    // If source is specified, filter by source
+    if (source) {
+      query += ` AND source = $3`;
+      params.push(source);
+    }
+    
+    const result = await db.query(query, params);
     return result.rows[0];
   } catch (error) {
     throw error;
@@ -83,13 +88,13 @@ static async findExistingAllowance(userId, date) {
   
   static async create(allowanceData) {
     try {
-      const { userId, date, amount, remarks } = allowanceData;
+      const { userId, date, amount, remarks, source = 'SCHEDULER' } = allowanceData;
       
       const result = await db.query(
-        `INSERT INTO daily_allowances (user_id, date, amount, status, remarks)
-         VALUES ($1, $2, $3, 'PENDING', $4)
-         RETURNING id, user_id, date, amount, status, remarks, created_at, updated_at`,
-        [userId, date, amount, remarks]
+        `INSERT INTO daily_allowances (user_id, date, amount, status, remarks, source)
+         VALUES ($1, $2, $3, 'PENDING', $4, $5)
+         RETURNING id, user_id, date, amount, status, remarks, source, created_at, updated_at`,
+        [userId, date, amount, remarks, source]
       );
       
       return result.rows[0];

@@ -1,3 +1,4 @@
+// server/routes/roleAllowance.routes.js
 const express = require('express');
 const router = express.Router();
 const roleAllowanceController = require('../controllers/roleAllowance.controller');

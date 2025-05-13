@@ -9,6 +9,11 @@ class User {
         [id]
       );
       
+      // Standardize is_active as boolean
+      if (result.rows[0]) {
+        result.rows[0].is_active = Boolean(result.rows[0].is_active);
+      }
+      
       return result.rows[0];
     } catch (error) {
       throw error;
@@ -87,7 +92,14 @@ class User {
       query += ' ORDER BY full_name ASC';
       
       const result = await db.query(query, queryParams);
-      return result.rows;
+      
+      // Standardize is_active as boolean for all users
+      const standardizedRows = result.rows.map(user => ({
+        ...user,
+        is_active: Boolean(user.is_active)
+      }));
+      
+      return standardizedRows;
     } catch (error) {
       throw error;
     }
@@ -195,7 +207,13 @@ static async update(id, userData) {
         [managerId]
       );
       
-      return result.rows;
+      // Standardize is_active as boolean for all team members
+      const standardizedRows = result.rows.map(user => ({
+        ...user,
+        is_active: Boolean(user.is_active)
+      }));
+      
+      return standardizedRows;
     } catch (error) {
       throw error;
     }
@@ -313,6 +331,11 @@ static async update(id, userData) {
          WHERE u.id = $1`,
         [id]
       );
+      
+      // Standardize is_active as boolean
+      if (result.rows[0]) {
+        result.rows[0].is_active = Boolean(result.rows[0].is_active);
+      }
       
       return result.rows[0];
     } catch (error) {

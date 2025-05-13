@@ -15,19 +15,20 @@ router.get('/test', (req, res) => {
 // User routes
 router.get('/', taController.getAllowances);
 router.post('/', taController.createAllowance);
+
+// Get available travel routes for the current user
+router.get('/routes', taController.getUserTravelRoutes);
+// Route validation endpoint
+router.post('/validate-route', taController.validateRoute);
+// Calculate distance between cities
+router.post('/calculate-distance', taController.calculateDistance);
+
 router.get('/:id', taController.getAllowanceById);
 router.put('/:id', taController.updateAllowance);
 router.delete('/:id', taController.deleteAllowance);
 
 // Admin routes
 router.get('/admin/all', isAdmin(), taController.getAllAllowancesAdmin);
-
-// Route validation endpoint
-router.post('/validate-route', taController.validateRoute);
-
-// Calculate distance between cities
-router.post('/calculate-distance', taController.calculateDistance);
-
 // Manager routes (requires manager role)
 router.patch('/:id/status', isManager(), taController.updateStatus);
 
@@ -41,7 +42,6 @@ router.get('/user/:userId', async (req, res, next) => {
   res.status(403).json({ message: 'Access denied' });
 });
 
-// Get available travel routes for the current user
-router.get('/routes', taController.getUserTravelRoutes);
+
 
 module.exports = router;

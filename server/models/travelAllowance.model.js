@@ -67,31 +67,110 @@ class TravelAllowance {
   
   static async create(allowanceData) {
     try {
-      const { userId, date, fromCity, toCity, distance, travelMode, amount, remarks } = allowanceData;
+      const { userId, date, fromCity, toCity, distance, travelMode, stationType, remarks } = allowanceData;
+      
+      // Validate required fields
+      const requiredFields = {
+        userId: 'User ID',
+        date: 'Date',
+        fromCity: 'From City',
+        toCity: 'To City',
+        distance: 'Distance',
+        travelMode: 'Travel Mode',
+        stationType: 'Station Type'
+      };
+
+      const missingFields = [];
+      for (const [field, label] of Object.entries(requiredFields)) {
+        if (allowanceData[field] === undefined || allowanceData[field] === null || allowanceData[field] === '') {
+          missingFields.push(label);
+        }
+      }
+
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+
+      // Get base allowance amount for user's role
+      const roleAllowance = await db.query(
+        `SELECT ra.daily_amount
+         FROM role_allowances ra
+         JOIN users u ON ra.role = u.role
+         WHERE u.id = $1`,
+        [userId]
+      );
+      
+      if (!roleAllowance.rows.length) {
+        throw new Error('No role allowance found for user');
+      }
+      
+      const baseAmount = roleAllowance.rows[0].daily_amount;
+      
+      // Use StationTypeAllowance class to calculate adjusted amount
+      const StationTypeAllowance = require('./stationTypeAllowance.model');
+      const amount = await StationTypeAllowance.calculateAdjustedAllowance(baseAmount, stationType);
       
       const result = await db.query(
-        `INSERT INTO travel_allowances (user_id, date, from_city, to_city, distance, travel_mode, amount, status, remarks)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8)
-         RETURNING id, user_id, date, from_city, to_city, distance, travel_mode, amount, status, remarks, created_at, updated_at`,
-        [userId, date, fromCity, toCity, distance, travelMode, amount, remarks]
+        `INSERT INTO travel_allowances (user_id, date, from_city, to_city, distance, travel_mode, station_type, amount, status, remarks)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING', $9)
+         RETURNING id, user_id, date, from_city, to_city, distance, travel_mode, station_type, amount, status, remarks, created_at, updated_at`,
+        [userId, date, fromCity, toCity, distance, travelMode, stationType, amount, remarks || '']
       );
       
       return result.rows[0];
     } catch (error) {
+      if (error.message.includes('station type')) {
+        throw new Error(`Invalid station type: ${stationType}`);
+      }
       throw error;
     }
   }
   
   static async update(id, allowanceData) {
     try {
-      const { date, fromCity, toCity, distance, travelMode, amount, remarks } = allowanceData;
+      const { date, fromCity, toCity, distance, travelMode, stationType, remarks } = allowanceData;
+      
+      // Get user_id from existing record
+      const existingRecord = await db.query('SELECT user_id FROM travel_allowances WHERE id = $1', [id]);
+      if (!existingRecord.rows.length) {
+        throw new Error('Travel allowance not found');
+      }
+      const userId = existingRecord.rows[0].user_id;
+
+      // Get base allowance amount for user's role
+      const roleAllowance = await db.query(
+        `SELECT ra.daily_amount
+         FROM role_allowances ra
+         JOIN users u ON ra.role = u.role
+         WHERE u.id = $1`,
+        [userId]
+      );
+      
+      if (!roleAllowance.rows.length) {
+        throw new Error('No role allowance found for user');
+      }
+      
+      const baseAmount = roleAllowance.rows[0].daily_amount;
+      
+      // Get station type multiplier
+      const stationTypeResult = await db.query(
+        'SELECT multiplier FROM station_type_allowances WHERE station_type = $1',
+        [stationType]
+      );
+      
+      if (!stationTypeResult.rows.length) {
+        throw new Error(`Invalid station type: ${stationType}`);
+      }
+      
+      // Calculate final amount
+      const amount = baseAmount * stationTypeResult.rows[0].multiplier;
       
       const result = await db.query(
         `UPDATE travel_allowances
-         SET date = $1, from_city = $2, to_city = $3, distance = $4, travel_mode = $5, amount = $6, remarks = $7
-         WHERE id = $8
-         RETURNING id, user_id, date, from_city, to_city, distance, travel_mode, amount, status, remarks, created_at, updated_at`,
-        [date, fromCity, toCity, distance, travelMode, amount, remarks, id]
+         SET date = $1, from_city = $2, to_city = $3, distance = $4, travel_mode = $5, station_type = $6, amount = $7, remarks = $8
+         WHERE id = $9
+         RETURNING id, user_id, date, from_city, to_city, distance, travel_mode, station_type, amount, status, remarks, created_at, updated_at`,
+        [date, fromCity, toCity, distance, travelMode, stationType, amount, remarks, id]
       );
       
       return result.rows[0];

@@ -131,6 +131,88 @@ class UserTravelRoute {
       throw error;
     }
   }
+
+  // Add these functions to server/models/userTravelRoute.model.js
+
+/**
+ * Find all active travel routes for a specific user
+ */
+static async findActiveByUserId(userId) {
+    try {
+      const result = await db.query(
+        `SELECT * FROM user_travel_routes 
+         WHERE user_id = $1 AND is_active = true
+         ORDER BY from_city, to_city`,
+        [userId]
+      );
+      
+      return result.rows;
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  /**
+   * Check if a user has a specific route
+   */
+  static async hasRoute(userId, fromCity, toCity) {
+    try {
+      const result = await db.query(
+        `SELECT EXISTS(
+           SELECT 1 FROM user_travel_routes 
+           WHERE user_id = $1 AND from_city = $2 AND to_city = $3 AND is_active = true
+         ) as has_route`,
+        [userId, fromCity, toCity]
+      );
+      
+      return result.rows[0]?.has_route || false;
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  /**
+   * Import routes for a new user from a template user or common routes
+   */
+  static async importRoutesForUser(userId, templateUserId = null) {
+    try {
+      let result;
+      
+      if (templateUserId) {
+        // Copy routes from template user
+        result = await db.query(
+          `INSERT INTO user_travel_routes 
+           (user_id, from_city, to_city, distance, amount, is_active)
+           SELECT $1, from_city, to_city, distance, amount, true
+           FROM user_travel_routes
+           WHERE user_id = $2 AND is_active = true
+           RETURNING *`,
+          [userId, templateUserId]
+        );
+      } else {
+        // If no template user provided, use common routes
+        // This would typically be defined by the organization
+        result = await db.query(
+          `INSERT INTO user_travel_routes 
+           (user_id, from_city, to_city, distance, amount, is_active)
+           SELECT $1, name as from_city, 
+                  (SELECT name FROM cities WHERE id != c.id ORDER BY RANDOM() LIMIT 1) as to_city,
+                  ROUND(RANDOM() * 100 + 20, 2) as distance,
+                  ROUND(RANDOM() * 100 + 50, 2) as amount,
+                  true as is_active
+           FROM cities c
+           WHERE is_active = true
+           LIMIT 10
+           RETURNING *`,
+          [userId]
+        );
+      }
+      
+      return result.rows;
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 module.exports = UserTravelRoute;

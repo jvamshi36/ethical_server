@@ -15,7 +15,12 @@ exports.getUsers = async (req, res) => {
     };
     
     const users = await User.findAll(filters);
-    res.json(users);
+    // Ensure is_active is always a boolean in the response
+    const standardizedUsers = users.map(user => ({
+      ...user,
+      is_active: Boolean(user.is_active)
+    }));
+    res.json(standardizedUsers);
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ message: 'Failed to fetch users' });
@@ -31,7 +36,13 @@ exports.getUserById = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    res.json(user);
+    // Ensure is_active is always a boolean in the response
+    const standardizedUser = {
+      ...user,
+      is_active: Boolean(user.is_active)
+    };
+    
+    res.json(standardizedUser);
   } catch (error) {
     console.error('Error fetching user:', error);
     res.status(500).json({ message: 'Failed to fetch user' });
